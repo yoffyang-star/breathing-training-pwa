@@ -1,0 +1,1370 @@
+/* =========================================================
+   全域
+   ========================================================= */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family:
+    "Noto Sans TC",
+    "Microsoft JhengHei",
+    Arial,
+    sans-serif;
+  color: #164b69;
+  background:
+    radial-gradient(
+      circle at 50% 5%,
+      rgba(255, 255, 255, 0.72),
+      transparent 34%
+    ),
+    linear-gradient(
+      180deg,
+      #dff5fb 0%,
+      #a8d9e9 52%,
+      #438eae 100%
+    );
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.app {
+  min-height: 100vh;
+  padding: 18px 12px 34px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  position: relative;
+  overflow-x: hidden;
+}
+
+.app::before {
+  content: "";
+  position: fixed;
+  left: -15%;
+  right: -15%;
+  bottom: -110px;
+  height: 240px;
+  border-radius: 50% 50% 0 0;
+  background: rgba(255, 255, 255, 0.12);
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+}
+
+.hero {
+  width: min(590px, 100%);
+  min-height: 640px;
+  padding: 34px 42px 40px;
+  border: 1.5px solid rgba(255, 255, 255, 0.75);
+  border-radius: 28px;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(245, 252, 255, 0.82),
+      rgba(105, 181, 209, 0.42)
+    );
+  box-shadow:
+    0 24px 55px rgba(24, 95, 122, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(12px);
+  position: relative;
+  z-index: 1;
+}
+
+.subtitle {
+  margin: 0 0 8px;
+  text-align: center;
+  color: #2d83a7;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.hero h1 {
+  margin: 6px 0 16px;
+  text-align: center;
+  color: #124b6b;
+  font-size: clamp(38px, 7vw, 58px);
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.description {
+  margin: 0 0 22px;
+  text-align: center;
+  color: #37738e;
+  font-size: 18px;
+  line-height: 1.8;
+}
+
+.input-label,
+.measurement-card label {
+  display: block;
+  margin: 0 0 8px;
+  color: #2d617b;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.study-input,
+.measurement-card input {
+  width: 100%;
+  min-height: 54px;
+  padding: 12px 17px;
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+  border-radius: 15px;
+  outline: none;
+  background: rgba(247, 252, 255, 0.72);
+  color: #164b69;
+  box-shadow:
+    inset 0 2px 5px rgba(31, 105, 133, 0.04);
+}
+
+.study-input:focus,
+.measurement-card input:focus {
+  border-color: #55a9ca;
+  box-shadow:
+    0 0 0 3px rgba(72, 164, 199, 0.14);
+}
+
+.info-box {
+  margin-top: 14px;
+  min-height: 58px;
+  padding: 13px 18px;
+  border-radius: 15px;
+  background: rgba(224, 243, 249, 0.48);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #2e6179;
+}
+
+.info-box strong {
+  font-size: 17px;
+}
+
+.start-button,
+.secondary-button,
+.export-button,
+.refresh-button {
+  border: 1.5px solid rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  color: #164b69;
+  font-weight: 800;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(245, 253, 255, 0.92),
+      rgba(208, 239, 248, 0.78)
+    );
+  box-shadow:
+    0 8px 18px rgba(28, 102, 132, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+
+.start-button {
+  width: 100%;
+  min-height: 58px;
+  margin-top: 22px;
+  padding: 12px 18px;
+  font-size: 20px;
+}
+
+.secondary-button {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 12px;
+  padding: 10px 16px;
+  font-size: 16px;
+}
+
+.start-button:hover,
+.secondary-button:hover,
+.export-button:hover,
+.refresh-button:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 11px 22px rgba(28, 102, 132, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.start-button:active,
+.secondary-button:active,
+.export-button:active,
+.refresh-button:active {
+  transform: translateY(0);
+}
+
+.danger-button {
+  color: #6d4c4c;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 247, 247, 0.85),
+      rgba(245, 220, 220, 0.68)
+    );
+}
+
+/* =========================================================
+   Day Badge
+   ========================================================= */
+
+.day-badge {
+  width: fit-content;
+  margin: 4px auto 12px;
+  padding: 8px 23px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  background: rgba(248, 253, 255, 0.38);
+  color: #275f7b;
+  font-weight: 800;
+}
+
+/* =========================================================
+   測量頁
+   ========================================================= */
+
+.measurement-page {
+  padding-top: 30px;
+}
+
+.measurement-page h1 {
+  margin-bottom: 8px;
+}
+
+.measurement-card {
+  padding: 24px;
+  border: 1.5px solid rgba(255, 255, 255, 0.82);
+  border-radius: 25px;
+  background: rgba(227, 245, 251, 0.36);
+}
+
+.measurement-heading {
+  margin-bottom: 25px;
+  text-align: center;
+  color: #245b76;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.vital-input-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.single-input {
+  margin-top: 19px;
+}
+
+.measurement-card input {
+  min-height: 52px;
+  font-size: 17px;
+}
+
+/* =========================================================
+   訓練頁
+   ========================================================= */
+
+.training-page {
+  text-align: center;
+}
+
+.training-page h1 {
+  margin-top: 10px;
+}
+
+.breathing-ball {
+  width: 190px;
+  height: 190px;
+  margin: 30px auto 26px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(
+      circle at 35% 28%,
+      rgba(255, 255, 255, 0.82),
+      rgba(213, 246, 255, 0.45) 44%,
+      rgba(99, 184, 215, 0.34)
+    );
+  box-shadow:
+    0 0 30px rgba(255, 255, 255, 0.32),
+    inset 0 0 22px rgba(255, 255, 255, 0.25);
+  transition: transform 5s ease-in-out;
+}
+
+.breathing-ball.inhale {
+  transform: scale(1.08);
+}
+
+.breathing-ball.exhale {
+  transform: scale(0.9);
+}
+
+.breathing-number {
+  font-size: 42px;
+  font-weight: 800;
+  color: #164b69;
+}
+
+.breathing-instruction {
+  margin: 0 0 24px;
+  font-size: 20px;
+  color: #376f88;
+  font-weight: 700;
+}
+
+.remaining-label {
+  color: #4b778a;
+  font-size: 15px;
+}
+
+.remaining-time {
+  margin-top: 3px;
+  color: #164b69;
+  font-size: 35px;
+  font-weight: 800;
+}
+
+.training-progress {
+  margin-top: 18px;
+  text-align: left;
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  color: #47748a;
+  font-size: 14px;
+}
+
+.progress-bar,
+.rate-bar,
+.study-progress-bar {
+  height: 11px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.progress-fill,
+.rate-fill,
+.study-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    #72c5e1,
+    #348eaf
+  );
+  transition: width 0.3s ease;
+}
+
+/* =========================================================
+   完成頁
+   ========================================================= */
+
+.complete-page {
+  text-align: center;
+}
+
+.complete-icon {
+  width: 72px;
+  height: 72px;
+  margin: 10px auto 20px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #16506f;
+  font-size: 44px;
+  font-weight: 800;
+  background: rgba(247, 253, 255, 0.35);
+}
+
+.complete-info {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.complete-info > div {
+  padding: 12px 18px;
+  border-radius: 14px;
+  background: rgba(226, 244, 250, 0.45);
+  color: #3b7188;
+}
+
+.complete-info strong {
+  margin-left: 6px;
+  color: #174f6d;
+}
+
+.evaluation-note {
+  font-weight: 800;
+  line-height: 1.7;
+}
+
+/* =========================================================
+   歷史紀錄頁
+   ========================================================= */
+
+.history-page {
+  padding-bottom: 34px;
+}
+
+.study-progress-card,
+.rate-section,
+.seven-day-card,
+.streak-card,
+.today-record-card {
+  margin-top: 15px;
+  border: 1.5px solid rgba(255, 255, 255, 0.75);
+  border-radius: 20px;
+  background: rgba(228, 246, 251, 0.34);
+}
+
+.study-progress-card {
+  padding: 17px 20px;
+  text-align: center;
+}
+
+.record-section-title {
+  color: #2e6883;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.study-progress-number {
+  margin: 4px 0 8px;
+  color: #174f6d;
+  font-size: 29px;
+  font-weight: 800;
+}
+
+.study-progress-number span {
+  margin-left: 5px;
+  color: #5b8190;
+  font-size: 15px;
+}
+
+.study-progress-text {
+  margin-top: 8px;
+  color: #4c788a;
+  font-size: 12px;
+}
+
+.rate-section {
+  padding: 13px 20px 16px;
+  text-align: center;
+}
+
+.rate-title {
+  display: block;
+  color: #4c788a;
+  font-size: 12px;
+}
+
+.rate-number {
+  display: block;
+  margin: 1px 0 9px;
+  color: #16506f;
+  font-size: 27px;
+}
+
+.seven-day-card {
+  padding: 15px 16px 17px;
+}
+
+.seven-day-card h2 {
+  margin: 0 0 14px;
+  text-align: center;
+  color: #245d77;
+  font-size: 14px;
+}
+
+.seven-day-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.day-item {
+  min-width: 0;
+  text-align: center;
+}
+
+.day-date {
+  display: block;
+  color: #3d7085;
+  font-size: 9px;
+}
+
+.day-status {
+  width: 32px;
+  height: 32px;
+  margin: 5px auto 3px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+}
+
+.day-status.completed {
+  color: #16506f;
+  background: rgba(235, 251, 255, 0.65);
+}
+
+.day-status.incomplete {
+  color: #628a99;
+  background: rgba(242, 250, 253, 0.35);
+}
+
+.day-label {
+  color: #5d8594;
+  font-size: 8px;
+}
+
+.streak-card {
+  min-height: 58px;
+  padding: 11px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.streak-icon {
+  font-size: 27px;
+}
+
+.streak-card span {
+  display: block;
+  color: #4d788a;
+  font-size: 11px;
+}
+
+.streak-card strong {
+  display: block;
+  color: #164b69;
+  font-size: 19px;
+}
+
+.today-record-card {
+  padding: 16px;
+}
+
+.record-day {
+  margin: 3px 0 12px;
+  text-align: center;
+  color: #1d5572;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.measurement-record {
+  margin-top: 9px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(211, 238, 247, 0.42);
+}
+
+.measurement-title {
+  margin-bottom: 7px;
+  text-align: center;
+  color: #356e83;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.vital-values {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+
+.vital-values > div {
+  padding: 7px 4px;
+  border-radius: 9px;
+  text-align: center;
+  background: rgba(239, 249, 252, 0.42);
+}
+
+.vital-values span {
+  display: block;
+  color: #6b8d99;
+  font-size: 7px;
+}
+
+.vital-values strong {
+  display: block;
+  margin-top: 2px;
+  color: #19536f;
+  font-size: 15px;
+}
+
+.vital-values small {
+  display: block;
+  color: #7b9aa4;
+  font-size: 6px;
+}
+
+.no-record {
+  padding: 10px;
+  text-align: center;
+  color: #7193a0;
+  font-size: 11px;
+}
+
+.record-note {
+  margin: 14px 3px 0;
+  text-align: center;
+  color: #587f8e;
+  font-size: 9px;
+  line-height: 1.8;
+}
+
+/* =========================================================
+   研究者後台
+   ========================================================= */
+
+.researcher-page {
+  width: min(1100px, 100%);
+  max-width: 1100px;
+  min-height: auto;
+  padding: 30px 30px 40px;
+}
+
+.researcher-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.researcher-header h1 {
+  margin: 2px 0 0;
+  text-align: left;
+  font-size: clamp(32px, 5vw, 48px);
+}
+
+.researcher-label {
+  color: #3685a4;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1.6px;
+}
+
+.refresh-button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 8px 15px;
+  font-size: 14px;
+}
+
+.researcher-card {
+  margin-top: 16px;
+  padding: 19px;
+  border: 1.5px solid rgba(255, 255, 255, 0.75);
+  border-radius: 20px;
+  background: rgba(228, 246, 251, 0.38);
+}
+
+.researcher-card-title {
+  margin-bottom: 13px;
+  color: #205c78;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.participant-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.participant-summary > div {
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(239, 249, 252, 0.4);
+}
+
+.participant-summary span,
+.kpi-card span {
+  display: block;
+  color: #5b8291;
+  font-size: 11px;
+}
+
+.participant-summary strong {
+  display: block;
+  margin-top: 4px;
+  color: #174f6d;
+  font-size: 15px;
+}
+
+.dashboard-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.kpi-card {
+  min-height: 105px;
+  padding: 16px;
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  border-radius: 18px;
+  background: rgba(232, 248, 252, 0.45);
+  text-align: center;
+}
+
+.kpi-card strong {
+  display: block;
+  margin-top: 7px;
+  color: #164b69;
+  font-size: 28px;
+}
+
+.kpi-card small {
+  margin-left: 3px;
+  color: #638796;
+  font-size: 12px;
+}
+
+.evaluation-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.evaluation-summary {
+  padding: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 15px;
+  background: rgba(239, 249, 252, 0.34);
+}
+
+.evaluation-summary-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.evaluation-summary-top span:first-child {
+  display: block;
+  color: #648895;
+  font-size: 10px;
+}
+
+.evaluation-summary-top strong {
+  display: block;
+  margin-top: 2px;
+  color: #174f6d;
+  font-size: 19px;
+}
+
+.evaluation-vitals {
+  display: grid;
+  gap: 6px;
+}
+
+.mini-measurement {
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: rgba(247, 253, 255, 0.35);
+}
+
+.mini-measurement > span {
+  display: block;
+  color: #6b8d99;
+  font-size: 9px;
+}
+
+.mini-measurement > strong {
+  display: block;
+  margin-top: 2px;
+  color: #1b5571;
+  font-size: 13px;
+}
+
+.mini-measurement small {
+  margin-left: 4px;
+  color: #6b8d99;
+  font-size: 9px;
+}
+
+.table-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 15px;
+}
+
+.table-header-row p {
+  margin: -5px 0 0;
+  color: #628593;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.export-button {
+  flex: 0 0 auto;
+  min-height: 42px;
+  padding: 8px 14px;
+  font-size: 14px;
+}
+
+.table-scroll {
+  margin-top: 15px;
+  overflow-x: auto;
+  border-radius: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.62);
+}
+
+.research-table {
+  width: 100%;
+  min-width: 840px;
+  border-collapse: collapse;
+  background: rgba(239, 249, 252, 0.26);
+}
+
+.research-table th,
+.research-table td {
+  padding: 10px 9px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.48);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.research-table th {
+  color: #2c657e;
+  background: rgba(225, 244, 250, 0.55);
+  font-size: 11px;
+}
+
+.research-table td {
+  color: #4c7888;
+  font-size: 11px;
+}
+
+.research-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.research-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.research-table .evaluation-row {
+  background: rgba(213, 239, 247, 0.3);
+}
+
+.research-table td strong {
+  color: #1b5571;
+}
+
+.evaluation-tag {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  color: #286c89;
+  background: rgba(157, 214, 232, 0.4);
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.table-vital {
+  color: #245e77;
+  font-weight: 800;
+}
+
+.table-vital small {
+  color: #718e99;
+  font-weight: 500;
+}
+
+.missing-text,
+.not-required {
+  color: #7d9ba5;
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.status-pill.complete {
+  color: #1b617d;
+  background: rgba(188, 230, 241, 0.72);
+}
+
+.status-pill.partial {
+  color: #7a6b3d;
+  background: rgba(244, 233, 185, 0.68);
+}
+
+.status-pill.incomplete {
+  color: #7d6a6a;
+  background: rgba(240, 218, 218, 0.62);
+}
+
+.researcher-note {
+  margin-top: 16px;
+  padding: 15px 18px;
+  border-radius: 16px;
+  background: rgba(221, 241, 248, 0.44);
+  color: #547d8c;
+  font-size: 11px;
+  line-height: 1.8;
+}
+
+.researcher-note strong {
+  color: #245d77;
+  font-size: 13px;
+}
+
+.researcher-note p {
+  margin: 5px 0 0;
+}
+
+.researcher-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.researcher-actions .start-button,
+.researcher-actions .secondary-button {
+  margin-top: 0;
+}
+
+.storage-hint {
+  margin-top: 12px;
+  text-align: center;
+  color: #7293a0;
+  font-size: 10px;
+}
+
+/* =========================================================
+   RWD
+   ========================================================= */
+
+@media (max-width: 760px) {
+  .app {
+    padding: 8px 8px 26px;
+  }
+
+  .hero {
+    width: 100%;
+    min-height: calc(100vh - 34px);
+    padding: 28px 20px 30px;
+    border-radius: 24px;
+  }
+
+  .subtitle {
+    font-size: 14px;
+    letter-spacing: 1.5px;
+  }
+
+  .hero h1 {
+    font-size: 38px;
+  }
+
+  .description {
+    font-size: 15px;
+  }
+
+  .researcher-page {
+    padding: 24px 14px 30px;
+  }
+
+  .researcher-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .researcher-header h1 {
+    font-size: 34px;
+  }
+
+  .refresh-button {
+    width: 100%;
+  }
+
+  .participant-summary,
+  .dashboard-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .evaluation-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .table-header-row {
+    flex-direction: column;
+  }
+
+  .export-button {
+    width: 100%;
+  }
+
+  .researcher-actions {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .vital-input-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .breathing-ball {
+    width: 165px;
+    height: 165px;
+  }
+
+  .seven-day-grid {
+    gap: 3px;
+  }
+
+  .day-status {
+    width: 29px;
+    height: 29px;
+  }
+
+  .participant-summary,
+  .dashboard-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .participant-summary > div {
+    padding: 10px;
+  }
+
+  .participant-summary strong {
+    font-size: 13px;
+  }
+}
+/* =========================================================
+   研究者後台入口
+   ========================================================= */
+
+.researcher-entry-button {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 14px 20px;
+
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 16px;
+
+  background: rgba(255, 255, 255, 0.28);
+  color: #174f6d;
+
+  font-size: 16px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.researcher-entry-button:hover {
+  background: rgba(255, 255, 255, 0.45);
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 8px 20px rgba(23, 79, 109, 0.12);
+}
+
+.researcher-entry-button:active {
+  transform: translateY(0);
+}
+/* Researcher login styles for the professor demo. */
+/* Keep your existing App.css and append this content if you already have one. */
+
+.researcher-login-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(255,255,255,.72), transparent 30%),
+    linear-gradient(180deg, #eaf8fc 0%, #c8eaf3 55%, #96d0df 100%);
+}
+
+.researcher-login-card {
+  width: min(440px, 100%);
+  padding: 40px 32px;
+  box-sizing: border-box;
+  text-align: center;
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(255,255,255,.92);
+  border-radius: 28px;
+  box-shadow: 0 20px 50px rgba(31,92,119,.16);
+  backdrop-filter: blur(12px);
+}
+
+.login-brand {
+  margin-bottom: 18px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #247ca2;
+}
+
+.login-icon {
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255,255,255,.72);
+  font-size: 30px;
+}
+
+.researcher-login-card h1 {
+  margin: 0 0 8px;
+  color: #174e70;
+  font-size: 32px;
+  line-height: 1.2;
+}
+
+.researcher-login-card p {
+  margin: 0 0 28px;
+  color: #4b8198;
+  font-size: 15px;
+}
+
+.login-form {
+  text-align: left;
+}
+
+.login-form label {
+  display: block;
+  margin-bottom: 8px;
+  color: #245d79;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.login-form input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  border: 2px solid rgba(255,255,255,.95);
+  border-radius: 14px;
+  background: rgba(255,255,255,.82);
+  color: #174e70;
+  font-size: 16px;
+  outline: none;
+}
+
+.login-form input:focus {
+  border-color: #4da9d0;
+  box-shadow: 0 0 0 3px rgba(77,169,208,.15);
+}
+
+.login-form .primary-button {
+  width: 100%;
+  margin-top: 18px;
+  padding: 14px 18px;
+}
+
+.login-error {
+  margin-top: 10px;
+  color: #b34b4b;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.login-note {
+  margin-top: 22px;
+  color: #628da0;
+  font-size: 13px;
+}
+
+@media (max-width: 480px) {
+  .researcher-login-page {
+    padding: 16px;
+  }
+
+  .researcher-login-card {
+    padding: 32px 22px;
+    border-radius: 24px;
+  }
+
+  .researcher-login-card h1 {
+    font-size: 28px;
+  }
+}
+
+
+/* =========================================================
+   Researcher Login - Professor Demo
+   ========================================================= */
+
+.researcher-login-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(255,255,255,.72), transparent 30%),
+    linear-gradient(180deg, #eaf8fc 0%, #c8eaf3 55%, #96d0df 100%);
+}
+
+.researcher-login-card {
+  width: min(440px, 100%);
+  padding: 40px 32px;
+  box-sizing: border-box;
+  text-align: center;
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(255,255,255,.92);
+  border-radius: 28px;
+  box-shadow: 0 20px 50px rgba(31,92,119,.16);
+  backdrop-filter: blur(12px);
+}
+
+.login-brand {
+  margin-bottom: 18px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #247ca2;
+}
+
+.login-icon {
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255,255,255,.72);
+  font-size: 30px;
+}
+
+.researcher-login-card h1 {
+  margin: 0 0 8px;
+  color: #174e70;
+  font-size: 32px;
+  line-height: 1.2;
+}
+
+.researcher-login-card p {
+  margin: 0 0 28px;
+  color: #4b8198;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.login-form {
+  text-align: left;
+}
+
+.login-form label {
+  display: block;
+  margin-bottom: 8px;
+  color: #245d79;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.login-form input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  border: 2px solid rgba(255,255,255,.95);
+  border-radius: 14px;
+  background: rgba(255,255,255,.82);
+  color: #174e70;
+  font-size: 16px;
+  outline: none;
+}
+
+.login-form input:focus {
+  border-color: #4da9d0;
+  box-shadow: 0 0 0 3px rgba(77,169,208,.15);
+}
+
+.login-form .primary-button {
+  width: 100%;
+  margin-top: 18px;
+  padding: 14px 18px;
+}
+
+.login-error {
+  margin-top: 10px;
+  color: #b34b4b;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.login-note {
+  margin-top: 22px;
+  color: #628da0;
+  font-size: 13px;
+}
+
+@media (max-width: 480px) {
+  .researcher-login-page {
+    padding: 16px;
+  }
+
+  .researcher-login-card {
+    padding: 32px 22px;
+    border-radius: 24px;
+  }
+
+  .researcher-login-card h1 {
+    font-size: 28px;
+  }
+}
