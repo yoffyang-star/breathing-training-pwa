@@ -1,5 +1,133 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
+import { db, authReady } from './firebase'
+import {
+  doc,
+  setDoc,
+  serverTimestamp,
+  collection,
+  getDocs,
+} from 'firebase/firestore'
+
+async function loadAllParticipants() {
+  try {
+    await authReady
+
+    // ① 先取得所有受試者
+    const snapshot = await getDocs(
+      collection(db, 'participants')
+    )
+
+    // ② 每一位受試者再讀取自己的 records
+    const participants = await Promise.all(
+      snapshot.docs.map(async (participantDoc) => {
+        const participantId = participantDoc.id
+        const participantData = participantDoc.data()
+
+        // 讀取：
+        // participants / P001 / records
+        const recordsSnapshot = await getDocs(
+          collection(
+            db,
+            'participants',
+            participantId,
+            'records'
+          )
+        )
+
+        // 將每天的 records 整理成：
+        // {
+        //   "2026-09-19": {...},
+        //   "2026-09-20": {...}
+        // }
+        const records = {}
+
+        recordsSnapshot.forEach((recordDoc) => {
+          records[recordDoc.id] = {
+            ...recordDoc.data(),
+          }
+        })
+
+        return {
+          id: participantId,
+          ...participantData,
+          records,
+        }
+      })
+    )
+
+    console.log(
+      'Firebase：目前共有',
+      participants.length,
+      '位受試者'
+    )
+
+    console.log(
+      'Firebase：完整受試者資料',
+      participants
+    )
+
+    // 轉成研究者後台目前使用的格式
+    const participantMap = {}
+
+    participants.forEach((participant) => {
+      participantMap[participant.id] = {
+        ...participant,
+        records: participant.records || {},
+      }
+    })
+
+    console.log(
+      '研究者後台：完整受試者資料',
+      participantMap
+    )
+
+    return participantMap
+  } catch (error) {
+    console.error(
+      'Firebase 讀取受試者資料失敗：',
+      error
+    )
+
+    return {}
+  }
+}
+
+async function loadParticipantRecords(participantId) {
+  try {
+    await authReady
+
+    const snapshot = await getDocs(
+      collection(
+        db,
+        'participants',
+        participantId,
+        'records'
+      )
+    )
+
+    const records = snapshot.docs.map((item) => ({
+      id: item.id,
+      ...item.data(),
+    }))
+
+    console.log(
+      `Firebase：${participantId} 共有`,
+      records.length,
+      '筆紀錄',
+      records
+    )
+
+    return records
+  } catch (error) {
+    console.error(
+      `Firebase：讀取 ${participantId} records 失敗`,
+      error
+    )
+
+    return []
+  }
+}
 
 /* =========================================================
    研究設定
@@ -315,10 +443,21 @@ function App() {
   const [study, setStudy] = useState(() => loadStudySettings())
   const [records, setRecords] = useState(() => loadRecords())
 
-  const [page, setPage] = useState(() => {
-    const saved = loadStudySettings()
-    return saved ? 'pre' : 'setup'
-  })
+  const [allParticipants, setAllParticipants] = useState([])
+  const [allParticipantRecords, setAllParticipantRecords] = useState({})
+
+const [page, setPage] = useState(() => {
+  const path = window.location.pathname
+
+  // /researcher → 研究者登入頁
+  if (path === '/researcher') {
+    return 'researcher-login'
+  }
+
+  // 一般首頁 → 受試者端
+  const saved = loadStudySettings()
+  return saved ? 'pre' : 'setup'
+})
 
   const [participantId, setParticipantId] = useState(() => {
     const saved = loadStudySettings()
@@ -350,10 +489,69 @@ function App() {
 
   const evaluationDay = isEvaluationDay(studyDay)
 
-  function refreshLocalData() {
-    setStudy(loadStudySettings())
-    setRecords(loadRecords())
+ useEffect(() => {
+  async function fetchParticipants() {
+    const participants = await loadAllParticipants()
+
+    setAllParticipants(participants)
+
+    console.log(
+      '研究者後台：目前 Firebase 受試者數量',
+      participants.length
+    )
+
+    console.log(
+      '研究者後台：受試者清單',
+      participants
+    )
+
+    const recordsByParticipant = {}
+
+    for (const participant of participants) {
+      const records = await loadParticipantRecords(
+        participant.id
+      )
+
+      recordsByParticipant[participant.id] = records
+    }
+
+    setAllParticipantRecords(recordsByParticipant)
+
+    console.log(
+      '研究者後台：所有受試者紀錄',
+      recordsByParticipant
+    )
   }
+
+  fetchParticipants()
+}, [])
+
+  async function refreshLocalData() {
+  try {
+    const participants = await loadAllParticipants()
+
+    setAllParticipants(participants)
+
+    const recordsByParticipant = {}
+
+    for (const participant of Object.values(participants)) {
+      recordsByParticipant[participant.id] =
+        participant.records || {}
+    }
+
+    setAllParticipantRecords(recordsByParticipant)
+
+    console.log(
+      '研究者後台：Firebase 資料已更新',
+      participants
+    )
+  } catch (error) {
+    console.error(
+      '研究者後台：更新 Firebase 資料失敗',
+      error
+    )
+  }
+}
 
   function updateTodayRecord(updates) {
     const current = records[todayKey] || {}
@@ -378,21 +576,42 @@ function App() {
      研究開始
      ======================================================= */
 
-  function startStudy() {
-    const id = participantId.trim()
+  async function startStudy() {
+  const id = participantId.trim()
 
-    if (!id) {
-      alert('請先輸入研究編號，例如 P001')
-      return
-    }
+  if (!id) {
+    alert('請先輸入研究編號，例如 P001')
+    return
+  }
 
-    const existing = loadStudySettings()
+  const existing = loadStudySettings()
 
-    const newStudy = {
-      participantId: id,
-      startDate: existing?.startDate || todayKey,
-    }
+  const newStudy = {
+    participantId: id,
+    startDate: existing?.startDate || todayKey,
+  }
 
+  try {
+    // 等待 Firebase 匿名登入完成
+    await authReady
+
+    // 將研究基本資料寫入 Firestore
+    await setDoc(
+      doc(db, 'participants', id),
+      {
+        participantId: id,
+        startDate: newStudy.startDate,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    )
+
+    console.log(
+      `Firestore：${id} 研究資料建立成功`
+    )
+
+    // 暫時保留 localStorage
+    // 避免一次修改太多功能
     localStorage.setItem(
       STORAGE_KEYS.study,
       JSON.stringify(newStudy)
@@ -401,7 +620,17 @@ function App() {
     setStudy(newStudy)
     setParticipantId(id)
     setPage('pre')
+  } catch (error) {
+    console.error(
+      'Firestore 儲存研究資料失敗:',
+      error
+    )
+
+    alert(
+      '研究資料尚未成功連線到雲端，請確認 Firebase 連線後再試一次。'
+    )
   }
+}
 
   /* =======================================================
      重新開始研究
@@ -427,49 +656,216 @@ function App() {
      儲存測量
      ======================================================= */
 
-  function savePreMeasurement(sbp, dbp, hr) {
-    updateTodayRecord({
-      date: todayKey,
-      participantId,
-      day: studyDay,
-      pre: {
-        sbp,
-        dbp,
-        hr,
-        time: new Date().toISOString(),
-      },
-    })
-  }
+  async function savePreMeasurement(sbp, dbp, hr) {
+  const time = new Date().toISOString()
 
-  function savePostMeasurement(sbp, dbp, hr) {
-    updateTodayRecord({
-      post: {
-        sbp,
-        dbp,
-        hr,
-        time: new Date().toISOString(),
-      },
-    })
-  }
+  // 先照原本方式儲存在本機
+  updateTodayRecord({
+    date: todayKey,
+    participantId,
+    day: studyDay,
+    pre: {
+      sbp,
+      dbp,
+      hr,
+      time,
+    },
+  })
 
-  function savePost30Measurement(sbp, dbp, hr) {
-    updateTodayRecord({
-      post30: {
-        sbp,
-        dbp,
-        hr,
-        time: new Date().toISOString(),
-      },
-    })
-  }
+  try {
+    // 等待 Firebase 匿名登入完成
+    await authReady
 
-  function completeTraining() {
-    updateTodayRecord({
-      completed: true,
-      completedAt: new Date().toISOString(),
-      trainingSeconds: TRAINING_SECONDS,
-    })
+    // 寫入 Firestore
+    await setDoc(
+      doc(
+        db,
+        'participants',
+        participantId,
+        'records',
+        todayKey
+      ),
+      {
+        participantId,
+        date: todayKey,
+        day: studyDay,
+        pre: {
+          sbp,
+          dbp,
+          hr,
+          time,
+        },
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    )
+
+    console.log(
+      `Firestore：${participantId} Day ${studyDay} 前測儲存成功`
+    )
+  } catch (error) {
+    console.error(
+      'Firestore 儲存前測失敗:',
+      error
+    )
+
+    alert(
+      '前測資料已暫存在本機，但尚未成功同步到雲端。'
+    )
   }
+}
+
+ async function savePostMeasurement(sbp, dbp, hr) {
+  const time = new Date().toISOString()
+
+  // 先保留原本的本機儲存
+  updateTodayRecord({
+    post: {
+      sbp,
+      dbp,
+      hr,
+      time,
+    },
+  })
+
+  try {
+    // 等待 Firebase 匿名登入完成
+    await authReady
+
+    // 將訓練後立即測量寫入 Firestore
+    await setDoc(
+      doc(
+        db,
+        'participants',
+        participantId,
+        'records',
+        todayKey
+      ),
+      {
+        post: {
+          sbp,
+          dbp,
+          hr,
+          time,
+        },
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    )
+
+    console.log(
+      `Firestore：${participantId} Day ${studyDay} 訓練後立即測量儲存成功`
+    )
+  } catch (error) {
+    console.error(
+      'Firestore 儲存訓練後立即測量失敗:',
+      error
+    )
+
+    alert(
+      '訓練後立即測量已儲存在本機，但尚未成功同步到雲端。'
+    )
+  }
+}
+
+  async function savePost30Measurement(sbp, dbp, hr) {
+  const time = new Date().toISOString()
+
+  // 先保留原本的本機儲存
+  updateTodayRecord({
+    post30: {
+      sbp,
+      dbp,
+      hr,
+      time,
+    },
+  })
+
+  try {
+    // 等待 Firebase 匿名登入完成
+    await authReady
+
+    // 將 30 分鐘後測量資料寫入 Firestore
+    await setDoc(
+      doc(
+        db,
+        'participants',
+        participantId,
+        'records',
+        todayKey
+      ),
+      {
+        post30: {
+          sbp,
+          dbp,
+          hr,
+          time,
+        },
+      },
+      { merge: true }
+    )
+
+    console.log(
+      `Firestore：${participantId} Day ${studyDay} 30 分鐘後測量儲存成功`
+    )
+  } catch (error) {
+    console.error(
+      'Firestore 儲存 30 分鐘後測量資料失敗：',
+      error
+    )
+
+    alert(
+      '30 分鐘後測量已保存在本機，但尚未成功同步到雲端。'
+    )
+  }
+}
+
+ async function completeTraining() {
+  const completedAt = new Date().toISOString()
+
+  // 先照原本方式儲存在本機
+  updateTodayRecord({
+    completed: true,
+    completedAt,
+    trainingSeconds: TRAINING_SECONDS,
+  })
+
+  try {
+    // 等待 Firebase 匿名登入完成
+    await authReady
+
+    // 將訓練完成資料寫入 Firestore
+    await setDoc(
+      doc(
+        db,
+        'participants',
+        participantId,
+        'records',
+        todayKey
+      ),
+      {
+        completed: true,
+        completedAt,
+        trainingSeconds: TRAINING_SECONDS,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    )
+
+    console.log(
+      `Firestore：${participantId} Day ${studyDay} 訓練完成儲存成功`
+    )
+  } catch (error) {
+    console.error(
+      'Firestore 儲存訓練完成資料失敗:',
+      error
+    )
+
+    alert(
+      '訓練完成資料已暫存在本機，但尚未成功同步到雲端。'
+    )
+  }
+}
 
   /* =======================================================
      Setup
@@ -548,12 +944,13 @@ function App() {
   if (page === 'researcher') {
     return (
       <ResearcherDashboard
-        study={study}
-        records={records}
-        onRefresh={refreshLocalData}
-        onBack={() => window.location.assign('/')}
-        onReset={resetStudy}
-      />
+  study={study}
+  records={records}
+  allParticipants={allParticipants}
+  onRefresh={refreshLocalData}
+  onBack={() => window.location.assign('/')}
+  onReset={resetStudy}
+/>
     )
   }
 
@@ -569,11 +966,11 @@ function App() {
         description="請測量血壓與心率"
         measurement={todayRecord?.pre}
         buttonText="開始呼吸訓練"
-        onComplete={(sbp, dbp, hr) => {
-          savePreMeasurement(sbp, dbp, hr)
-          setPage('training')
-        }}
-      />
+        onComplete={async (sbp, dbp, hr) => {
+  await savePreMeasurement(sbp, dbp, hr)
+  setPage('training')
+}}
+/>
     )
   }
 
@@ -587,10 +984,10 @@ function App() {
         studyDay={studyDay}
         totalSeconds={TRAINING_SECONDS}
         breathSeconds={BREATH_SECONDS}
-        onFinish={() => {
-          completeTraining()
-          setPage('post')
-        }}
+       onFinish={async () => {
+  await completeTraining()
+  setPage('post')
+}}
         onCancel={() => {
           const confirmed = window.confirm(
             '確定要提前結束本次訓練嗎？未完成將不會記錄為今日完成。'
@@ -620,15 +1017,15 @@ function App() {
             ? '下一步：30 分鐘後測量'
             : '完成今日訓練'
         }
-        onComplete={(sbp, dbp, hr) => {
-          savePostMeasurement(sbp, dbp, hr)
+       onComplete={async (sbp, dbp, hr) => {
+  await savePostMeasurement(sbp, dbp, hr)
 
-          if (evaluationDay) {
-            setPage('post30')
-          } else {
-            setPage('complete')
-          }
-        }}
+  if (evaluationDay) {
+    setPage('post30')
+  } else {
+    setPage('complete')
+  }
+}}
       />
     )
   }
@@ -645,10 +1042,10 @@ function App() {
         description="請測量血壓與心率"
         measurement={todayRecord?.post30}
         buttonText="完成今日評估"
-        onComplete={(sbp, dbp, hr) => {
-          savePost30Measurement(sbp, dbp, hr)
-          setPage('complete')
-        }}
+        onComplete={async (sbp, dbp, hr) => {
+  await savePost30Measurement(sbp, dbp, hr)
+  setPage('complete')
+}}
       />
     )
   }
@@ -977,6 +1374,19 @@ function MeasurementPage({
    呼吸訓練頁
    ========================================================= */
 
+/* =========================================================
+   呼吸訓練頁
+   5 秒吸氣 + 5 秒吐氣
+   加入：
+   1. 吸氣 / 吐氣不同深淺藍色
+   2. 中文口述提示
+   3. 吸吐轉換提示音
+   ========================================================= */
+
+/* =========================================================
+   呼吸訓練頁
+   ========================================================= */
+
 function TrainingPage({
   studyDay,
   totalSeconds,
@@ -985,38 +1395,327 @@ function TrainingPage({
   onCancel,
 }) {
   const [remaining, setRemaining] = useState(totalSeconds)
+
   const [phase, setPhase] = useState('inhale')
-  const [running, setRunning] = useState(true)
+
+  // 一開始先不要自動跑
+  const [running, setRunning] = useState(false)
+
+  const [started, setStarted] = useState(false)
+
+  const audioContextRef = useRef(null)
+
+  const previousPhaseRef = useRef(null)
+
+  /* -------------------------------------------------------
+     建立 AudioContext
+  ------------------------------------------------------- */
+
+  function getAudioContext() {
+    if (typeof window === 'undefined') {
+      return null
+    }
+
+    const AudioContextClass =
+      window.AudioContext ||
+      window.webkitAudioContext
+
+    if (!AudioContextClass) {
+      return null
+    }
+
+    if (!audioContextRef.current) {
+      audioContextRef.current =
+        new AudioContextClass()
+    }
+
+    return audioContextRef.current
+  }
+
+  /* -------------------------------------------------------
+     啟動 AudioContext
+     必須放在使用者按鈕事件裡
+  ------------------------------------------------------- */
+
+  async function unlockAudio() {
+    const audioContext =
+      getAudioContext()
+
+    if (!audioContext) {
+      return
+    }
+
+    try {
+      if (
+        audioContext.state === 'suspended'
+      ) {
+        await audioContext.resume()
+      }
+    } catch (error) {
+      console.log(
+        'AudioContext 啟動失敗：',
+        error
+      )
+    }
+  }
+
+  /* -------------------------------------------------------
+     播放吸氣 / 吐氣提示音
+  ------------------------------------------------------- */
+
+  function playTransitionSound(
+    nextPhase
+  ) {
+    const audioContext =
+      getAudioContext()
+
+    if (!audioContext) {
+      return
+    }
+
+    if (
+      audioContext.state === 'suspended'
+    ) {
+      return
+    }
+
+    const oscillator =
+      audioContext.createOscillator()
+
+    const gainNode =
+      audioContext.createGain()
+
+    oscillator.connect(gainNode)
+
+    gainNode.connect(
+      audioContext.destination
+    )
+
+    // 吸氣高音、吐氣低音
+    const frequency =
+      nextPhase === 'inhale'
+        ? 720
+        : 480
+
+    oscillator.type = 'sine'
+
+    oscillator.frequency.setValueAtTime(
+      frequency,
+      audioContext.currentTime
+    )
+
+    gainNode.gain.setValueAtTime(
+      0.0001,
+      audioContext.currentTime
+    )
+
+    gainNode.gain.exponentialRampToValueAtTime(
+      0.12,
+      audioContext.currentTime + 0.03
+    )
+
+    gainNode.gain.exponentialRampToValueAtTime(
+      0.0001,
+      audioContext.currentTime + 0.35
+    )
+
+    oscillator.start(
+      audioContext.currentTime
+    )
+
+    oscillator.stop(
+      audioContext.currentTime + 0.4
+    )
+  }
+
+  /* -------------------------------------------------------
+     中文口述
+  ------------------------------------------------------- */
+
+  function speakPhase(
+    nextPhase
+  ) {
+    if (
+      typeof window === 'undefined'
+    ) {
+      return
+    }
+
+    if (
+      !('speechSynthesis' in window)
+    ) {
+      console.log(
+        '此瀏覽器不支援語音合成'
+      )
+
+      return
+    }
+
+    const speech =
+      window.speechSynthesis
+
+    speech.cancel()
+
+    const text =
+      nextPhase === 'inhale'
+        ? '吸氣'
+        : '吐氣'
+
+    const utterance =
+      new SpeechSynthesisUtterance(
+        text
+      )
+
+    utterance.lang = 'zh-TW'
+
+    utterance.rate = 0.75
+
+    utterance.pitch = 1
+
+    utterance.volume = 1
+
+    const voices =
+      speech.getVoices()
+
+    const chineseVoice =
+      voices.find(
+        (voice) =>
+          voice.lang === 'zh-TW'
+      ) ||
+      voices.find(
+        (voice) =>
+          voice.lang === 'zh-TW'
+      ) ||
+      voices.find(
+        (voice) =>
+          voice.lang.startsWith('zh')
+      )
+
+    if (chineseVoice) {
+      utterance.voice =
+        chineseVoice
+    }
+
+    utterance.onerror = (
+      event
+    ) => {
+      console.log(
+        '語音播放錯誤：',
+        event.error
+      )
+    }
+
+    speech.speak(
+      utterance
+    )
+  }
+
+  /* -------------------------------------------------------
+     開始訓練
+     這裡是最重要的：
+     使用者按下按鈕後才啟動音效與語音
+  ------------------------------------------------------- */
+
+  async function handleStart() {
+    await unlockAudio()
+
+    setStarted(true)
+
+    setRunning(true)
+
+    previousPhaseRef.current =
+      'inhale'
+
+    // 第一次吸氣
+    playTransitionSound(
+      'inhale'
+    )
+
+    speakPhase(
+      'inhale'
+    )
+  }
+
+  /* -------------------------------------------------------
+     倒數
+  ------------------------------------------------------- */
 
   useEffect(() => {
-    if (!running) return
+    if (!running) {
+      return
+    }
 
-    const timer = setInterval(() => {
-      setRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer)
-          setRunning(false)
-          return 0
-        }
+    const timer =
+      setInterval(() => {
+        setRemaining(
+          (prev) => {
+            if (prev <= 1) {
+              clearInterval(
+                timer
+              )
 
-        return prev - 1
-      })
-    }, 1000)
+              setRunning(false)
 
-    return () => clearInterval(timer)
+              return 0
+            }
+
+            return prev - 1
+          }
+        )
+      }, 1000)
+
+    return () =>
+      clearInterval(timer)
   }, [running])
 
+  /* -------------------------------------------------------
+     判斷吸氣 / 吐氣
+  ------------------------------------------------------- */
+
   useEffect(() => {
-    if (!running) return
+    if (!running) {
+      return
+    }
 
-    const elapsed = totalSeconds - remaining
+    const elapsed =
+      totalSeconds -
+      remaining
+
     const cyclePosition =
-      elapsed % (breathSeconds * 2)
+      elapsed %
+      (breathSeconds * 2)
 
-    if (cyclePosition < breathSeconds) {
-      setPhase('inhale')
-    } else {
-      setPhase('exhale')
+    const nextPhase =
+      cyclePosition <
+      breathSeconds
+        ? 'inhale'
+        : 'exhale'
+
+    setPhase(
+      nextPhase
+    )
+
+    /* -----------------------------------------------------
+       只有真的從吸氣變吐氣，
+       或從吐氣變吸氣時才播放
+    ----------------------------------------------------- */
+
+    if (
+      previousPhaseRef.current !==
+      null &&
+      previousPhaseRef.current !==
+      nextPhase
+    ) {
+      previousPhaseRef.current =
+        nextPhase
+
+      playTransitionSound(
+        nextPhase
+      )
+
+      speakPhase(
+        nextPhase
+      )
     }
   }, [
     remaining,
@@ -1025,95 +1724,313 @@ function TrainingPage({
     breathSeconds,
   ])
 
+  /* -------------------------------------------------------
+     訓練完成
+  ------------------------------------------------------- */
+
   useEffect(() => {
-    if (remaining !== 0) return
+    if (
+      remaining !== 0
+    ) {
+      return
+    }
 
-    const timer = setTimeout(() => {
-      onFinish()
-    }, 500)
+    if (
+      typeof window !==
+      'undefined' &&
+      'speechSynthesis' in
+        window
+    ) {
+      window.speechSynthesis.cancel()
+    }
 
-    return () => clearTimeout(timer)
-  }, [remaining, onFinish])
+    const timer =
+      setTimeout(() => {
+        onFinish()
+      }, 500)
 
-  const minutes = Math.floor(remaining / 60)
-  const seconds = remaining % 60
+    return () =>
+      clearTimeout(timer)
+  }, [
+    remaining,
+    onFinish,
+  ])
+
+  /* -------------------------------------------------------
+     載入中文語音
+  ------------------------------------------------------- */
+
+  useEffect(() => {
+    if (
+      typeof window ===
+      'undefined'
+    ) {
+      return
+    }
+
+    if (
+      !('speechSynthesis' in
+        window)
+    ) {
+      return
+    }
+
+    const speech =
+      window.speechSynthesis
+
+    // 先讀一次
+    speech.getVoices()
+
+    // Chrome 可能需要等待 voiceschanged
+    const handleVoicesChanged =
+      () => {
+        speech.getVoices()
+      }
+
+    speech.addEventListener(
+      'voiceschanged',
+      handleVoicesChanged
+    )
+
+    return () => {
+      speech.removeEventListener(
+        'voiceschanged',
+        handleVoicesChanged
+      )
+    }
+  }, [])
+
+  /* -------------------------------------------------------
+     離開頁面時清理
+  ------------------------------------------------------- */
+
+  useEffect(() => {
+    return () => {
+      if (
+        typeof window !==
+          'undefined' &&
+        'speechSynthesis' in
+          window
+      ) {
+        window.speechSynthesis.cancel()
+      }
+
+      if (
+        audioContextRef.current
+      ) {
+        audioContextRef.current.close()
+
+        audioContextRef.current =
+          null
+      }
+    }
+  }, [])
+
+  /* -------------------------------------------------------
+     顯示時間
+  ------------------------------------------------------- */
+
+  const minutes =
+    Math.floor(
+      remaining / 60
+    )
+
+  const seconds =
+    remaining % 60
 
   const timeText =
-    `${String(minutes).padStart(2, '0')}:` +
-    `${String(seconds).padStart(2, '0')}`
+    `${String(minutes).padStart(
+      2,
+      '0'
+    )}:` +
+    `${String(seconds).padStart(
+      2,
+      '0'
+    )}`
 
   const progress =
-    ((totalSeconds - remaining) / totalSeconds) * 100
+    (
+      (totalSeconds -
+        remaining) /
+      totalSeconds
+    ) * 100
 
-  const elapsed = totalSeconds - remaining
-  const cycle = elapsed % (breathSeconds * 2)
+  const elapsed =
+    totalSeconds -
+    remaining
+
+  const cycle =
+    elapsed %
+    (breathSeconds * 2)
 
   const phaseNumber =
     phase === 'inhale'
-      ? Math.max(1, breathSeconds - cycle)
-      : Math.max(1, breathSeconds * 2 - cycle)
+      ? Math.max(
+          1,
+          breathSeconds -
+            cycle
+        )
+      : Math.max(
+          1,
+          breathSeconds * 2 -
+            cycle
+        )
+
+  const phaseText =
+    phase === 'inhale'
+      ? '吸氣'
+      : '吐氣'
+
+  const instructionText =
+    phase === 'inhale'
+      ? '慢慢吸氣'
+      : '慢慢吐氣'
 
   return (
     <main className="app">
       <section className="hero training-page">
-        <p className="subtitle">5–5 BREATHING TRAINING</p>
+
+        <p className="subtitle">
+          5–5 BREATHING TRAINING
+        </p>
 
         <div className="day-badge">
           Day {studyDay}
         </div>
 
-        <h1>
-          {phase === 'inhale' ? '吸氣' : '吐氣'}
-        </h1>
-
-        <div
+        <h1
           className={
-            `breathing-ball ${
-              phase === 'inhale'
-                ? 'inhale'
-                : 'exhale'
-            }`
+            phase === 'inhale'
+              ? 'phase-title inhale'
+              : 'phase-title exhale'
           }
         >
-          <div className="breathing-number">
-            {phaseNumber}
-          </div>
-        </div>
+          {started
+            ? phaseText
+            : '準備開始'}
+        </h1>
 
-        <p className="breathing-instruction">
-          {phase === 'inhale'
-            ? '慢慢吸氣'
-            : '慢慢吐氣'}
-        </p>
+        {!started ? (
+          <>
+            <div className="breathing-ball pre-start">
+              <div className="breathing-number">
+                5
+              </div>
+            </div>
 
-        <div className="remaining-label">
-          剩餘時間
-        </div>
+            <p className="breathing-instruction inhale">
+              按下開始後，會有語音提示
+            </p>
 
-        <div className="remaining-time">
-          {timeText}
-        </div>
+            <div className="audio-guide">
+              <span>🔊</span>
+              <span>
+                開始後會播放「吸氣」語音
+              </span>
+            </div>
 
-        <div className="training-progress">
-          <div className="progress-header">
-            <span>練習進度</span>
-            <span>{Math.round(progress)}%</span>
-          </div>
+            <button
+              className="start-button"
+              onClick={
+                handleStart
+              }
+            >
+              開始訓練
+            </button>
 
-          <div className="progress-bar">
+            <button
+              className="secondary-button"
+              onClick={onCancel}
+            >
+              返回
+            </button>
+          </>
+        ) : (
+          <>
             <div
-              className="progress-fill"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
+              className={
+                `breathing-ball ${
+                  phase === 'inhale'
+                    ? 'inhale'
+                    : 'exhale'
+                }`
+              }
+              aria-label={
+                phaseText
+              }
+            >
+              <div className="breathing-number">
+                {phaseNumber}
+              </div>
+            </div>
 
-        <button
-          className="start-button"
-          onClick={onCancel}
-        >
-          提前結束
-        </button>
+            <p
+              className={
+                phase === 'inhale'
+                  ? 'breathing-instruction inhale'
+                  : 'breathing-instruction exhale'
+              }
+            >
+              {instructionText}
+            </p>
+
+            <div className="audio-guide">
+              <span>🔊</span>
+              <span>
+                語音提示：吸氣／吐氣
+              </span>
+              <span>・</span>
+              <span>
+                轉換時有提示音
+              </span>
+            </div>
+
+            <div className="remaining-label">
+              剩餘時間
+            </div>
+
+            <div className="remaining-time">
+              {timeText}
+            </div>
+
+            <div className="training-progress">
+
+              <div className="progress-header">
+                <span>
+                  練習進度
+                </span>
+
+                <span>
+                  {Math.round(
+                    progress
+                  )}
+                  %
+                </span>
+              </div>
+
+              <div className="progress-bar">
+
+                <div
+                  className="progress-fill"
+                  style={{
+                    width:
+                      `${progress}%`,
+                  }}
+                />
+
+              </div>
+
+            </div>
+
+            <button
+              className="start-button"
+              onClick={onCancel}
+            >
+              提前結束
+            </button>
+          </>
+        )}
+
       </section>
     </main>
   )
@@ -1238,19 +2155,123 @@ function MeasurementRecord({ title, data }) {
    研究者後台
    ========================================================= */
 
-function ResearcherDashboard({
+function formatParticipantId(id) {
+  const value = String(id ?? '')
+
+  if (value.toUpperCase().startsWith('P')) {
+    return value.toUpperCase()
+  }
+
+  if (/^\d+$/.test(value)) {
+    return `P${value.padStart(3, '0')}`
+  }
+
+  return value
+}
+
+   function ResearcherDashboard({
   study,
   records,
+  allParticipants,
   onRefresh,
   onBack,
   onReset,
 }) {
-  const participantId = study?.participantId || '尚未設定'
-  const startDate = study?.startDate || null
+  const defaultParticipantId =
+  study?.participantId || '尚未設定'
+
+  const participantIds = Object.keys(allParticipants || {}).sort(
+  (a, b) =>
+    String(a).localeCompare(String(b), undefined, {
+      numeric: true,
+      sensitivity: 'base',
+    })
+)
+
+const selectedParticipantId =
+  participantIds.includes(defaultParticipantId)
+    ? defaultParticipantId
+    : participantIds[0] || defaultParticipantId
+  
+    const [selectedParticipant, setSelectedParticipant] =
+  useState(selectedParticipantId)
+
+  const [participantMenuOpen, setParticipantMenuOpen] = useState(false)
+
+  const selectedParticipantRecords = useMemo(() => {
+  const data = allParticipants?.[selectedParticipant]
+
+  if (!data) {
+    return []
+  }
+
+  // 情況 1：Firebase 直接回傳每日紀錄陣列
+  if (Array.isArray(data)) {
+    return data
+  }
+
+  // 情況 2：Firebase 回傳
+  // {
+  //   participantId: "P001",
+  //   records: [...]
+  // }
+  if (Array.isArray(data.records)) {
+    return data.records
+  }
+
+  // 情況 3：Firebase 回傳
+  // {
+  //   participantId: "P001",
+  //   dailyRecords: [...]
+  // }
+  if (Array.isArray(data.dailyRecords)) {
+    return data.dailyRecords
+  }
+
+  // 情況 4：records 本身是用日期當 key 的物件
+  if (
+    data.records &&
+    typeof data.records === 'object'
+  ) {
+    return Object.values(data.records)
+  }
+
+  // 情況 5：整個 data 本身就是
+  // { "2026-09-19": {...}, "2026-09-20": {...} }
+  if (typeof data === 'object') {
+    const values = Object.values(data)
+
+    return values.filter(
+      (item) =>
+        item &&
+        typeof item === 'object' &&
+        item.date
+    )
+  }
+
+  return []
+}, [allParticipants, selectedParticipant])
+
+const selectedRecords = useMemo(() => {
+  const result = {}
+
+  selectedParticipantRecords.forEach((record) => {
+    if (record?.date) {
+      result[record.date] = record
+    }
+  })
+
+  return result
+}, [selectedParticipantRecords])
+
+  const startDate =
+  selectedParticipantRecords[0]?.date ||
+  study?.startDate ||
+  null
 
   const sortedDates = useMemo(() => {
-    return Object.keys(records).sort()
-  }, [records])
+  return Object.keys(selectedRecords).sort()
+}, [selectedRecords])
 
   const studyRows = useMemo(() => {
     if (!startDate) return []
@@ -1263,7 +2284,7 @@ function ResearcherDashboard({
         date.setDate(date.getDate() + index)
 
         const dateKey = getDateKey(date)
-        const record = records[dateKey] || null
+        const record = selectedRecords[dateKey]|| null
 
         return {
           day,
@@ -1273,7 +2294,7 @@ function ResearcherDashboard({
         }
       }
     )
-  }, [startDate, records])
+  }, [startDate, selectedRecords])
 
   const completedDays = studyRows.filter(
     (row) => row.record?.completed === true
@@ -1319,6 +2340,134 @@ function ResearcherDashboard({
     () => calculateResearchAnalysis(studyRows),
     [studyRows]
   )
+
+    const allParticipantAnalysis = useMemo(() => {
+    const participants = Object.values(allParticipants || {})
+
+    const result = {
+      1: {
+        sbp: { immediate: [], post30: [] },
+        dbp: { immediate: [], post30: [] },
+        hr: { immediate: [], post30: [] },
+      },
+      14: {
+        sbp: { immediate: [], post30: [] },
+        dbp: { immediate: [], post30: [] },
+        hr: { immediate: [], post30: [] },
+      },
+      28: {
+        sbp: { immediate: [], post30: [] },
+        dbp: { immediate: [], post30: [] },
+        hr: { immediate: [], post30: [] },
+      },
+    }
+
+    participants.forEach((participant) => {
+      const participantRecords = participant?.records || {}
+
+      Object.values(participantRecords).forEach((record) => {
+        const day = record?.day
+
+        if (![1, 14, 28].includes(day)) {
+          return
+        }
+
+        const pre = record?.pre
+        const post = record?.post
+        const post30 = record?.post30
+
+        if (!result[day]) {
+          return
+        }
+
+        // 立即後測：Post - Pre
+        if (pre && post) {
+          const sbpImmediate = getChange(
+            pre.sbp,
+            post.sbp
+          )
+
+          const dbpImmediate = getChange(
+            pre.dbp,
+            post.dbp
+          )
+
+          const hrImmediate = getChange(
+            pre.hr,
+            post.hr
+          )
+
+          if (sbpImmediate !== null) {
+            result[day].sbp.immediate.push(sbpImmediate)
+          }
+
+          if (dbpImmediate !== null) {
+            result[day].dbp.immediate.push(dbpImmediate)
+          }
+
+          if (hrImmediate !== null) {
+            result[day].hr.immediate.push(hrImmediate)
+          }
+        }
+
+        // 30 分鐘後：Post30 - Pre
+        if (pre && post30) {
+          const sbpPost30 = getChange(
+            pre.sbp,
+            post30.sbp
+          )
+
+          const dbpPost30 = getChange(
+            pre.dbp,
+            post30.dbp
+          )
+
+          const hrPost30 = getChange(
+            pre.hr,
+            post30.hr
+          )
+
+          if (sbpPost30 !== null) {
+            result[day].sbp.post30.push(sbpPost30)
+          }
+
+          if (dbpPost30 !== null) {
+            result[day].dbp.post30.push(dbpPost30)
+          }
+
+          if (hrPost30 !== null) {
+            result[day].hr.post30.push(hrPost30)
+          }
+        }
+      })
+    })
+
+    return result
+  }, [allParticipants])
+
+    function getAverageText(values, unit) {
+    if (!values.length) {
+      return '資料不足'
+    }
+
+    const average = mean(values)
+
+    return `${average > 0 ? '+' : ''}${formatNumber(
+      average
+    )} ${unit}`
+  }
+
+  function getMcidText(values, mcid) {
+    if (!values.length) {
+      return '資料不足'
+    }
+
+    const count = values.filter(
+      (value) => value <= -mcid
+    ).length
+
+    return `${count}/${values.length}`
+  }
 
   function downloadCSV() {
     const headers = [
@@ -1429,8 +2578,573 @@ function ResearcherDashboard({
               RESEARCHER DASHBOARD
             </span>
 
-            <h1>研究者後台</h1>
+           <h1>研究者後台</h1>
+{/* 全部受試者總覽 */}
+<div
+  style={{
+    marginTop: '16px',
+    padding: '18px',
+        width: '100%',
+    boxSizing: 'border-box',
+    borderRadius: '16px',
+    background: 'rgba(255,255,255,0.72)',
+    border: '1px solid rgba(255,255,255,0.95)',
+  }}
+>
+  <div
+    style={{
+      fontSize: '21px',
+      fontWeight: '700',
+      color: '#155e75',
+      marginBottom: '14px',
+    }}
+  >
+    全部受試者總覽
+  </div>
+
+  {participantIds.length === 0 ? (
+    <div
+      style={{
+        padding: '24px',
+        textAlign: 'center',
+        color: '#64748b',
+        fontSize: '18px',
+      }}
+    >
+      目前尚無受試者資料
+    </div>
+  ) : (
+    <div
+      style={{
+        width: '100%',
+        overflowX: 'auto',
+      }}
+    >
+      <table
+        style={{
+          width: '100%',
+          minWidth: '900px',
+          borderCollapse: 'separate',
+          borderSpacing: 0,
+          background: '#ffffff',
+          borderRadius: '12px',
+          overflow: 'hidden',
+        }}
+      >
+        <thead>
+          <tr
+            style={{
+              background: '#e0f2fe',
+              color: '#155e75',
+            }}
+          >
+            <th
+              style={{
+                padding: '14px 10px',
+                textAlign: 'left',
+                fontSize: '16px',
+              }}
+            >
+              受試者
+            </th>
+
+            <th
+              style={{
+                padding: '14px 10px',
+                textAlign: 'center',
+                fontSize: '16px',
+              }}
+            >
+              完成率
+            </th>
+
+            <th
+              style={{
+                padding: '14px 10px',
+                textAlign: 'center',
+                fontSize: '16px',
+              }}
+            >
+              Day 1
+            </th>
+
+            <th
+              style={{
+                padding: '14px 10px',
+                textAlign: 'center',
+                fontSize: '16px',
+              }}
+            >
+              Day 14
+            </th>
+
+            <th
+              style={{
+                padding: '14px 10px',
+                textAlign: 'center',
+                fontSize: '16px',
+              }}
+            >
+              Day 28
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {Array.from(
+            new Map(
+              participantIds.map((id) => [
+                formatParticipantId(id),
+                id,
+              ])
+            ).values()
+          ).map((id) => {
+            const data = allParticipants?.[id]
+
+            let participantRecords = []
+
+            if (Array.isArray(data)) {
+              participantRecords = data
+            } else if (Array.isArray(data?.records)) {
+              participantRecords = data.records
+            } else if (
+              Array.isArray(data?.dailyRecords)
+            ) {
+              participantRecords = data.dailyRecords
+            } else if (
+              data?.records &&
+              typeof data.records === 'object'
+            ) {
+              participantRecords = Object.values(
+                data.records
+              )
+            } else if (
+              data &&
+              typeof data === 'object'
+            ) {
+              participantRecords =
+                Object.values(data).filter(
+                  (item) =>
+                    item &&
+                    typeof item === 'object' &&
+                    item.date
+                )
+            }
+
+            const validRecords =
+              participantRecords
+                .filter(
+                  (record) => record?.date
+                )
+                .sort((a, b) =>
+                  String(a.date).localeCompare(
+                    String(b.date)
+                  )
+                )
+
+            const completedDays =
+              validRecords.filter(
+                (record) =>
+                  record?.completed === true
+              ).length
+
+            const participantStartDate =
+              data?.startDate ||
+              validRecords[0]?.date ||
+              null
+
+            const completionRate =
+              TOTAL_DAYS > 0
+                ? (completedDays / TOTAL_DAYS) * 100
+                : 0
+
+            const getStudyDay = (record) => {
+              if (
+                Number.isFinite(
+                  Number(record?.studyDay)
+                )
+              ) {
+                return Number(record.studyDay)
+              }
+
+              if (
+                !participantStartDate ||
+                !record?.date
+              ) {
+                return null
+              }
+
+              const start =
+                new Date(
+                  `${participantStartDate}T00:00:00`
+                )
+
+              const current =
+                new Date(
+                  `${record.date}T00:00:00`
+                )
+
+              const diff =
+                Math.round(
+                  (current - start) /
+                    (1000 * 60 * 60 * 24)
+                ) + 1
+
+              return diff
+            }
+
+            const getEvaluationRecord = (
+              evaluationDay
+            ) => {
+              return (
+                validRecords.find(
+                  (record) =>
+                    getStudyDay(record) ===
+                    evaluationDay
+                ) || null
+              )
+            }
+
+            const getChange = (
+              preValue,
+              postValue
+            ) => {
+              const pre = Number(preValue)
+              const post = Number(postValue)
+
+              if (
+                !Number.isFinite(pre) ||
+                !Number.isFinite(post)
+              ) {
+                return null
+              }
+
+              return post - pre
+            }
+
+            const getMCID = (change) => {
+              if (change === null) {
+                return false
+              }
+
+              return change <= -5
+            }
+
+            const renderEvaluationDay = (
+              evaluationDay
+            ) => {
+              const record =
+                getEvaluationRecord(
+                  evaluationDay
+                )
+
+              if (!record) {
+                return (
+                  <div
+                    style={{
+                      color: '#94a3b8',
+                      fontSize: '15px',
+                      lineHeight: '1.7',
+                    }}
+                  >
+                    尚無資料
+                  </div>
+                )
+              }
+
+              const sbpChange = getChange(
+                record.pre?.sbp,
+                record.post?.sbp
+              )
+
+              const dbpChange = getChange(
+                record.pre?.dbp,
+                record.post?.dbp
+              )
+
+              const hrChange = getChange(
+                record.pre?.hr,
+                record.post?.hr
+              )
+
+              const formatChange = (
+                value
+              ) => {
+                if (value === null) {
+                  return '—'
+                }
+
+                return `${
+                  value > 0 ? '+' : ''
+                }${value}`
+              }
+
+              const sbpMCID =
+                getMCID(sbpChange)
+
+              const dbpMCID =
+                getMCID(dbpChange)
+
+              return (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    lineHeight: '1.5',
+                    fontSize: '15px',
+                  }}
+                >
+                  <div>
+                    <strong>SBP</strong>{' '}
+                    {formatChange(sbpChange)}
+                    <span
+                      style={{
+                        marginLeft: '4px',
+                        color: sbpMCID
+                          ? '#15803d'
+                          : '#94a3b8',
+                        fontWeight: '700',
+                      }}
+                    >
+                      {sbpMCID
+                        ? '✓'
+                        : ''}
+                    </span>
+                  </div>
+
+                  <div>
+                    <strong>DBP</strong>{' '}
+                    {formatChange(dbpChange)}
+                    <span
+                      style={{
+                        marginLeft: '4px',
+                        color: dbpMCID
+                          ? '#15803d'
+                          : '#94a3b8',
+                        fontWeight: '700',
+                      }}
+                    >
+                      {dbpMCID
+                        ? '✓'
+                        : ''}
+                    </span>
+                  </div>
+
+                  <div>
+                    <strong>HR</strong>{' '}
+                    {formatChange(hrChange)}
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: '2px',
+                      fontSize: '13px',
+                      color: '#64748b',
+                    }}
+                  >
+                    MCID：
+                    {sbpMCID ||
+                    dbpMCID
+                      ? '達成'
+                      : '未達'}
+                  </div>
+                </div>
+              )
+            }
+
+            return (
+              <tr
+                key={id}
+                style={{
+                  borderBottom:
+                    '1px solid #e2e8f0',
+                }}
+              >
+                <td
+                  style={{
+                    padding: '14px 10px',
+                    fontWeight: '700',
+                    color: '#155e75',
+                    verticalAlign: 'top',
+                  }}
+                >
+                  {formatParticipantId(id)}
+                </td>
+
+                <td
+                  style={{
+                    padding: '14px 10px',
+                    textAlign: 'center',
+                    fontWeight: '700',
+                    verticalAlign: 'top',
+                  }}
+                >
+                  {completionRate.toFixed(1)}%
+                </td>
+
+                <td
+                  style={{
+                    padding: '14px 10px',
+                    textAlign: 'center',
+                    verticalAlign: 'top',
+                  }}
+                >
+                  {renderEvaluationDay(1)}
+                </td>
+
+                <td
+                  style={{
+                    padding: '14px 10px',
+                    textAlign: 'center',
+                    verticalAlign: 'top',
+                  }}
+                >
+                  {renderEvaluationDay(14)}
+                </td>
+
+                <td
+                  style={{
+                    padding: '14px 10px',
+                    textAlign: 'center',
+                    verticalAlign: 'top',
+                  }}
+                >
+                  {renderEvaluationDay(28)}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )}
+</div>
+
+            <div
+  style={{
+    marginTop: '16px',
+    padding: '16px',
+    borderRadius: '16px',
+    background: 'rgba(255,255,255,0.65)',
+    border: '1px solid rgba(255,255,255,0.9)',
+  }}
+>
+  <label
+    htmlFor="participant-select"
+    style={{
+      display: 'block',
+      fontWeight: '700',
+      fontSize: '20px',
+      marginBottom: '8px',
+      color: '#155e75',
+    }}
+  >
+    受試者選擇
+  </label>
+
+  <div
+  style={{
+    position: 'relative',
+    width: '100%',
+  }}
+>
+  <button
+    type="button"
+    onClick={() =>
+      setParticipantMenuOpen((prev) => !prev)
+    }
+    style={{
+      width: '100%',
+      minHeight: '56px',
+      padding: '12px 16px',
+      borderRadius: '12px',
+      border: '2px solid #b6d9e8',
+      background: '#ffffff',
+      color: '#155e75',
+      fontSize: '22px',
+      fontWeight: '700',
+      textAlign: 'left',
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    }}
+  >
+    <span>
+      {formatParticipantId(selectedParticipant)}
+    </span>
+
+    <span
+      style={{
+        fontSize: '22px',
+        lineHeight: 1,
+      }}
+    >
+      {participantMenuOpen ? '▲' : '▼'}
+    </span>
+  </button>
+
+  {participantMenuOpen && (
+    <div
+      style={{
+        position: 'absolute',
+        top: 'calc(100% + 6px)',
+        left: 0,
+        right: 0,
+        zIndex: 1000,
+        maxHeight: '320px',
+        overflowY: 'auto',
+        background: '#ffffff',
+        border: '2px solid #b6d9e8',
+        borderRadius: '12px',
+        boxShadow: '0 8px 20px rgba(0,0,0,0.15)',
+        padding: '6px',
+      }}
+    >
+      {participantIds.map((id) => {
+        const displayId = formatParticipantId(id)
+        const isSelected =
+          String(id) === String(selectedParticipant)
+
+        return (
+          <button
+            key={id}
+            type="button"
+            onClick={() => {
+              setSelectedParticipant(id)
+              setParticipantMenuOpen(false)
+            }}
+            style={{
+              width: '100%',
+              minHeight: '52px',
+              padding: '10px 14px',
+              border: 'none',
+              borderRadius: '8px',
+              background: isSelected
+                ? '#dff3fa'
+                : '#ffffff',
+              color: '#155e75',
+              fontSize: '20px',
+              fontWeight: isSelected
+                ? '700'
+                : '600',
+              textAlign: 'left',
+              cursor: 'pointer',
+              marginBottom: '3px',
+            }}
+          >
+            {displayId}
+          </button>
+        )
+      })}
+    </div>
+  )}
+</div>
+</div>
+
           </div>
+
 
           <button
             className="refresh-button"
@@ -1449,7 +3163,7 @@ function ResearcherDashboard({
           <div className="participant-summary">
             <div>
               <span>研究編號</span>
-              <strong>{participantId}</strong>
+              <strong>{selectedParticipant}</strong>
             </div>
 
             <div>
@@ -1762,8 +3476,39 @@ function EvaluationSummary({ row }) {
       record?.completed
     )
 
+  const immediateSBP =
+    record?.pre && record?.post
+      ? getChange(record.pre.sbp, record.post.sbp)
+      : null
+
+  const immediateDBP =
+    record?.pre && record?.post
+      ? getChange(record.pre.dbp, record.post.dbp)
+      : null
+
+  const immediateHR =
+    record?.pre && record?.post
+      ? getChange(record.pre.hr, record.post.hr)
+      : null
+
+  const post30SBP =
+    record?.pre && record?.post30
+      ? getChange(record.pre.sbp, record.post30.sbp)
+      : null
+
+  const post30DBP =
+    record?.pre && record?.post30
+      ? getChange(record.pre.dbp, record.post30.dbp)
+      : null
+
+  const post30HR =
+    record?.pre && record?.post30
+      ? getChange(record.pre.hr, record.post30.hr)
+      : null
+
   return (
     <div className="evaluation-summary">
+
       <div className="evaluation-summary-top">
         <div>
           <span>評估日</span>
@@ -1782,6 +3527,7 @@ function EvaluationSummary({ row }) {
       </div>
 
       <div className="evaluation-vitals">
+
         <MiniMeasurement
           title="訓練前"
           data={record?.pre}
@@ -1796,7 +3542,133 @@ function EvaluationSummary({ row }) {
           title="30 分鐘後"
           data={record?.post30}
         />
+
       </div>
+
+      {/* 訓練後立即變化 */}
+      <div
+        style={{
+          marginTop: '12px',
+          padding: '10px 12px',
+          borderRadius: '10px',
+          background: 'rgba(255,255,255,0.35)',
+        }}
+      >
+        <strong>訓練後立即變化</strong>
+
+        <div style={{ marginTop: '6px' }}>
+          SBP：
+          <strong>
+            {immediateSBP !== null
+              ? `${immediateSBP > 0 ? '+' : ''}${immediateSBP} mmHg`
+              : '資料不足'}
+          </strong>
+        </div>
+
+        <div>
+          DBP：
+          <strong>
+            {immediateDBP !== null
+              ? `${immediateDBP > 0 ? '+' : ''}${immediateDBP} mmHg`
+              : '資料不足'}
+          </strong>
+        </div>
+
+        <div>
+          HR：
+          <strong>
+            {immediateHR !== null
+              ? `${immediateHR > 0 ? '+' : ''}${immediateHR} bpm`
+              : '資料不足'}
+          </strong>
+        </div>
+      </div>
+
+      {/* 30 分鐘後變化 */}
+      <div
+        style={{
+          marginTop: '10px',
+          padding: '10px 12px',
+          borderRadius: '10px',
+          background: 'rgba(255,255,255,0.35)',
+        }}
+      >
+        <strong>30 分鐘後變化</strong>
+
+        <div style={{ marginTop: '6px' }}>
+          SBP：
+          <strong>
+            {post30SBP !== null
+              ? `${post30SBP > 0 ? '+' : ''}${post30SBP} mmHg`
+              : '資料不足'}
+          </strong>
+        </div>
+
+        <div>
+          DBP：
+          <strong>
+            {post30DBP !== null
+              ? `${post30DBP > 0 ? '+' : ''}${post30DBP} mmHg`
+              : '資料不足'}
+          </strong>
+        </div>
+
+        <div>
+          HR：
+          <strong>
+            {post30HR !== null
+              ? `${post30HR > 0 ? '+' : ''}${post30HR} bpm`
+              : '資料不足'}
+          </strong>
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: '8px',
+          fontSize: '13px',
+          opacity: 0.8,
+        }}
+      >
+        負值代表下降，正值代表上升。
+      </div>
+
+    </div>
+  )
+}
+
+
+/* =========================================================
+   變化量小卡
+   ========================================================= */
+
+function ChangeItem({ label, value, unit }) {
+  if (value === null) {
+    return (
+      <div className="change-item">
+        <span>{label}</span>
+        <strong>—</strong>
+        <small>資料不足</small>
+      </div>
+    )
+  }
+
+  const displayValue =
+    value > 0
+      ? `+${formatNumber(value)}`
+      : formatNumber(value)
+
+  return (
+    <div className="change-item">
+      <span>{label}</span>
+
+      <strong>
+        {displayValue}
+      </strong>
+
+      <small>
+        {unit}
+      </small>
     </div>
   )
 }

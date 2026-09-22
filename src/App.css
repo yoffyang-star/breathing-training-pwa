@@ -654,10 +654,13 @@ button {
    ========================================================= */
 
 .researcher-page {
-  width: min(1100px, 100%);
+  width: min(1100px, calc(100% - 40px));
   max-width: 1100px;
   min-height: auto;
   padding: 30px 30px 40px;
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .researcher-header {
@@ -694,6 +697,8 @@ button {
   border: 1.5px solid rgba(255, 255, 255, 0.75);
   border-radius: 20px;
   background: rgba(228, 246, 251, 0.38);
+    box-sizing: border-box;
+  width: 100%;
 }
 
 .researcher-card-title {
@@ -1367,4 +1372,359 @@ button {
   .researcher-login-card h1 {
     font-size: 28px;
   }
+}
+
+/* =========================================================
+   5-5 呼吸訓練：吸氣 / 吐氣視覺提示
+   同色系藍色，不使用完全不同顏色
+   ========================================================= */
+
+/* 呼吸階段標題 */
+
+.phase-title {
+  transition:
+    color 0.35s ease,
+    transform 0.35s ease;
+}
+
+/* 吸氣：較深的藍色 */
+
+.phase-title.inhale {
+  color: #287fa3;
+}
+
+/* 吐氣：較淺的藍色 */
+
+.phase-title.exhale {
+  color: #55a6c2;
+}
+
+
+/* =========================================================
+   呼吸球
+   ========================================================= */
+
+.breathing-ball {
+  position: relative;
+  transition:
+    transform 5s ease-in-out,
+    background 0.6s ease,
+    box-shadow 0.6s ease,
+    border-color 0.6s ease;
+}
+
+
+/* 吸氣：
+   同色系中較深、較明顯 */
+
+.breathing-ball.inhale {
+  background:
+    radial-gradient(
+      circle at 35% 28%,
+      rgba(255, 255, 255, 0.92),
+      rgba(177, 225, 239, 0.72) 42%,
+      rgba(70, 157, 190, 0.62)
+    );
+
+  border-color:
+    rgba(72, 157, 190, 0.85);
+
+  box-shadow:
+    0 0 36px rgba(66, 158, 194, 0.28),
+    inset 0 0 28px rgba(255, 255, 255, 0.38);
+}
+
+
+/* 吐氣：
+   同色系中較柔和、較淺 */
+
+.breathing-ball.exhale {
+  background:
+    radial-gradient(
+      circle at 35% 28%,
+      rgba(255, 255, 255, 0.95),
+      rgba(207, 239, 247, 0.72) 45%,
+      rgba(112, 188, 211, 0.45)
+    );
+
+  border-color:
+    rgba(108, 184, 208, 0.75);
+
+  box-shadow:
+    0 0 30px rgba(94, 177, 205, 0.22),
+    inset 0 0 24px rgba(255, 255, 255, 0.42);
+}
+
+
+/* 呼吸球裡面的數字 */
+
+.breathing-ball.inhale
+.breathing-number {
+  color: #236985;
+}
+
+.breathing-ball.exhale
+.breathing-number {
+  color: #3f88a2;
+}
+
+
+/* =========================================================
+   呼吸提示文字
+   ========================================================= */
+
+.breathing-instruction.inhale {
+  color: #287fa3;
+}
+
+.breathing-instruction.exhale {
+  color: #55a6c2;
+}
+
+
+/* =========================================================
+   聲音提示
+   ========================================================= */
+
+.audio-guide {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 20px;
+  padding: 8px 14px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.72);
+
+  border-radius: 999px;
+
+  background:
+    rgba(231, 247, 252, 0.46);
+
+  color: #527f90;
+
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+
+/* =========================================================
+   呼吸進度條
+   維持原本藍色系
+   ========================================================= */
+
+.training-page
+.progress-fill {
+  background:
+    linear-gradient(
+      90deg,
+      #7bc8df,
+      #348eaf
+    );
+}
+
+
+/* =========================================================
+   手機版
+   ========================================================= */
+
+@media (max-width: 480px) {
+
+  .audio-guide {
+    font-size: 11px;
+    padding: 7px 10px;
+    gap: 4px;
+  }
+
+  .breathing-ball {
+    width: 175px;
+    height: 175px;
+  }
+
+}
+/* =========================================================
+   5–5 呼吸球動畫
+   吸氣：5 秒由小變大
+   吐氣：5 秒由大變小
+   ========================================================= */
+
+.training-page .breathing-ball {
+  width: 190px;
+  height: 190px;
+  margin: 30px auto 26px;
+
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+
+  position: relative;
+  transform-origin: center center;
+
+  will-change: transform;
+
+  border: 2px solid rgba(255, 255, 255, 0.9);
+}
+
+
+/* =========================================================
+   吸氣動畫
+   從小 → 慢慢變大 → 最大
+   ========================================================= */
+
+@keyframes breathing-inhale {
+  0% {
+    transform: scale(0.88);
+  }
+
+  50% {
+    transform: scale(1.03);
+  }
+
+  100% {
+    transform: scale(1.18);
+  }
+}
+
+
+/* =========================================================
+   吐氣動畫
+   從大 → 慢慢變小 → 最小
+   ========================================================= */
+
+@keyframes breathing-exhale {
+  0% {
+    transform: scale(1.18);
+  }
+
+  50% {
+    transform: scale(1.03);
+  }
+
+  100% {
+    transform: scale(0.88);
+  }
+}
+
+
+/* =========================================================
+   吸氣
+   ========================================================= */
+
+.training-page .breathing-ball.inhale {
+  animation:
+    breathing-inhale 5s ease-in-out forwards;
+
+  background:
+    radial-gradient(
+      circle at 35% 28%,
+      rgba(255, 255, 255, 0.95),
+      rgba(177, 225, 239, 0.75) 42%,
+      rgba(70, 157, 190, 0.62)
+    );
+
+  border-color:
+    rgba(72, 157, 190, 0.9);
+
+  box-shadow:
+    0 0 42px rgba(66, 158, 194, 0.32),
+    inset 0 0 30px rgba(255, 255, 255, 0.4);
+}
+
+
+/* =========================================================
+   吐氣
+   ========================================================= */
+
+.training-page .breathing-ball.exhale {
+  animation:
+    breathing-exhale 5s ease-in-out forwards;
+
+  background:
+    radial-gradient(
+      circle at 35% 28%,
+      rgba(255, 255, 255, 0.95),
+      rgba(207, 239, 247, 0.72) 45%,
+      rgba(112, 188, 211, 0.45)
+    );
+
+  border-color:
+    rgba(108, 184, 208, 0.75);
+
+  box-shadow:
+    0 0 30px rgba(94, 177, 205, 0.22),
+    inset 0 0 24px rgba(255, 255, 255, 0.42);
+}
+
+
+/* =========================================================
+   數字顏色
+   ========================================================= */
+
+.training-page
+.breathing-ball.inhale
+.breathing-number {
+  color: #236985;
+}
+
+.training-page
+.breathing-ball.exhale
+.breathing-number {
+  color: #3f88a2;
+}
+
+
+/* =========================================================
+   手機版
+   ========================================================= */
+
+@media (max-width: 480px) {
+
+  .training-page .breathing-ball {
+    width: 175px;
+    height: 175px;
+  }
+
+}
+/* =========================================================
+   準備開始畫面
+   尚未按開始訓練時，呼吸球固定不動
+   ========================================================= */
+
+.training-page .breathing-ball.pre-start {
+  transform: scale(1);
+
+  animation: none;
+
+  background:
+    radial-gradient(
+      circle at 35% 28%,
+      rgba(255, 255, 255, 0.95),
+      rgba(177, 225, 239, 0.75) 42%,
+      rgba(70, 157, 190, 0.62)
+    );
+
+  border-color:
+    rgba(72, 157, 190, 0.9);
+
+  box-shadow:
+    0 0 30px rgba(66, 158, 194, 0.25),
+    inset 0 0 28px rgba(255, 255, 255, 0.4);
+}
+
+/* 研究者後台：受試者選擇 */
+.researcher-participant-select {
+  font-size: 20px !important;
+  font-weight: 600;
+  min-height: 54px;
+}
+
+.researcher-participant-select option {
+  font-size: 20px !important;
+  font-weight: 600;
+  padding: 10px;
 }
