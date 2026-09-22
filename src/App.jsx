@@ -914,9 +914,8 @@ const [page, setPage] = useState(() => {
           <button
             className="secondary-button"
             onClick={() => {
-              refreshLocalData()
-              setPage('researcher')
-            }}
+  window.location.assign('/researcher')
+}}
           >
             研究者後台
           </button>
