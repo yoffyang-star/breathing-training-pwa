@@ -1531,83 +1531,59 @@ function TrainingPage({
      中文口述
   ------------------------------------------------------- */
 
-  function speakPhase(
-    nextPhase
+  
+function speakPhase(nextPhase) {
+  if (typeof window === 'undefined') return
+
+  if (
+    !('speechSynthesis' in window) ||
+    !('SpeechSynthesisUtterance' in window)
   ) {
-    if (
-      typeof window === 'undefined'
-    ) {
-      return
-    }
+    console.log('此瀏覽器不支援語音合成')
+    return
+  }
 
-    if (
-      !('speechSynthesis' in window)
-    ) {
-      console.log(
-        '此瀏覽器不支援語音合成'
-      )
+  const speech = window.speechSynthesis
+  const text = nextPhase === 'inhale' ? '吸氣' : '吐氣'
 
-      return
-    }
-
-    const speech =
-      window.speechSynthesis
-
-    speech.cancel()
-
-    const text =
-      nextPhase === 'inhale'
-        ? '吸氣'
-        : '吐氣'
-
-    const utterance =
-      new SpeechSynthesisUtterance(
-        text
-      )
+  try {
+    const utterance = new SpeechSynthesisUtterance(text)
 
     utterance.lang = 'zh-TW'
-
     utterance.rate = 0.75
-
     utterance.pitch = 1
-
     utterance.volume = 1
 
-    const voices =
-      speech.getVoices()
+    const voices = speech.getVoices()
 
     const chineseVoice =
-      voices.find(
-        (voice) =>
-          voice.lang === 'zh-TW'
-      ) ||
-      voices.find(
-        (voice) =>
-          voice.lang === 'zh-TW'
-      ) ||
-      voices.find(
-        (voice) =>
-          voice.lang.startsWith('zh')
-      )
+      voices.find((voice) => /^zh[-_]TW$/i.test(voice.lang)) ||
+      voices.find((voice) => /zh[-_]Hant/i.test(voice.lang)) ||
+      voices.find((voice) => /^zh/i.test(voice.lang))
 
     if (chineseVoice) {
-      utterance.voice =
-        chineseVoice
+      utterance.voice = chineseVoice
     }
 
-    utterance.onerror = (
-      event
-    ) => {
-      console.log(
-        '語音播放錯誤：',
-        event.error
-      )
+    utterance.onstart = () => {
+      console.log('語音開始播放：', text)
     }
 
-    speech.speak(
-      utterance
-    )
+    utterance.onend = () => {
+      console.log('語音播放完成：', text)
+    }
+
+    utterance.onerror = (event) => {
+      console.warn('語音播放錯誤：', event.error)
+    }
+
+    speech.resume()
+    speech.speak(utterance)
+  } catch (error) {
+    console.error('語音啟動失敗：', error)
   }
+}
+
 
   /* -------------------------------------------------------
      開始訓練
@@ -1615,25 +1591,23 @@ function TrainingPage({
      使用者按下按鈕後才啟動音效與語音
   ------------------------------------------------------- */
 
-  async function handleStart() {
-    await unlockAudio()
+  
+function handleStart() {
+  // 先直接啟動語音
+  speakPhase('inhale')
 
-    setStarted(true)
+  // 解鎖音效
+  unlockAudio()
 
-    setRunning(true)
+  setStarted(true)
+  setRunning(true)
 
-    previousPhaseRef.current =
-      'inhale'
+  previousPhaseRef.current = 'inhale'
 
-    // 第一次吸氣
-    playTransitionSound(
-      'inhale'
-    )
+  // 播放第一次吸氣提示音
+  playTransitionSound('inhale')
+}
 
-    speakPhase(
-      'inhale'
-    )
-  }
 
   /* -------------------------------------------------------
      倒數
