@@ -1436,51 +1436,68 @@ function TrainingPage({
      必須放在使用者按鈕事件裡
   ------------------------------------------------------- */
 
-  async function unlockAudio() {
-    const audioContext =
-      getAudioContext()
+  
+async function unlockAudio() {
+  const audioContext = getAudioContext()
 
-    if (!audioContext) {
-      return
-    }
-
-    try {
-      if (
-        audioContext.state === 'suspended'
-      ) {
-        await audioContext.resume()
-      }
-    } catch (error) {
-      console.log(
-        'AudioContext 啟動失敗：',
-        error
-      )
-    }
+  if (!audioContext) {
+    console.warn('無法建立 AudioContext')
+    return false
   }
+
+  try {
+    // iPhone：在使用者點擊時播放一個極短的靜音音訊
+    const buffer = audioContext.createBuffer(
+      1,
+      1,
+      audioContext.sampleRate
+    )
+
+    const source = audioContext.createBufferSource()
+    source.buffer = buffer
+    source.connect(audioContext.destination)
+
+    source.start(0)
+
+    // 同時解除 AudioContext 暫停狀態
+    if (audioContext.state === 'suspended') {
+      await audioContext.resume()
+    }
+
+    console.log(
+      'AudioContext 狀態：',
+      audioContext.state
+    )
+
+    return audioContext.state === 'running'
+
+  } catch (error) {
+    console.error('AudioContext 解鎖失敗：', error)
+    return false
+  }
+}
+
 
   /* -------------------------------------------------------
      播放吸氣 / 吐氣提示音
   ------------------------------------------------------- */
 
  
-async function playTransitionSound(nextPhase) {
+
+function playTransitionSound(nextPhase) {
   const audioContext = getAudioContext()
 
   if (!audioContext) {
-    console.warn('此裝置不支援 AudioContext')
+    console.warn('無法建立 AudioContext')
     return
   }
 
   try {
-    // 如果音效系統暫停，嘗試重新啟動
+    // 先要求恢復音訊，但不等待，避免錯過 iPhone 點擊事件
     if (audioContext.state === 'suspended') {
-      await audioContext.resume()
-    }
-
-    // 確認音效系統已正常啟動
-    if (audioContext.state !== 'running') {
-      console.warn('AudioContext 尚未啟動')
-      return
+      audioContext.resume().catch((error) => {
+        console.warn('AudioContext 恢復失敗：', error)
+      })
     }
 
     const oscillator = audioContext.createOscillator()
@@ -1489,7 +1506,6 @@ async function playTransitionSound(nextPhase) {
     oscillator.connect(gainNode)
     gainNode.connect(audioContext.destination)
 
-    // 吸氣高音、吐氣低音
     const frequency =
       nextPhase === 'inhale' ? 720 : 480
 
@@ -1497,10 +1513,7 @@ async function playTransitionSound(nextPhase) {
 
     const now = audioContext.currentTime
 
-    oscillator.frequency.setValueAtTime(
-      frequency,
-      now
-    )
+    oscillator.frequency.setValueAtTime(frequency, now)
 
     gainNode.gain.setValueAtTime(0.0001, now)
 
@@ -1517,12 +1530,13 @@ async function playTransitionSound(nextPhase) {
     oscillator.start(now)
     oscillator.stop(now + 0.4)
 
-    console.log('呼吸提示音播放：', nextPhase)
+    console.log('提示音已建立：', nextPhase)
 
   } catch (error) {
-    console.error('呼吸提示音播放失敗：', error)
+    console.error('提示音播放失敗：', error)
   }
 }
+
 
 
   /* -------------------------------------------------------
@@ -1591,11 +1605,12 @@ function speakPhase(nextPhase) {
 
   
 
-async function handleStart() {
-  // 先啟動音效解鎖
-  const audioUnlockPromise = unlockAudio()
 
-  // 立即啟動中文語音
+function handleStart() {
+  // 在使用者點擊當下啟動音效解鎖
+  unlockAudio()
+
+  // 立即播放中文語音
   speakPhase('inhale')
 
   setStarted(true)
@@ -1603,12 +1618,10 @@ async function handleStart() {
 
   previousPhaseRef.current = 'inhale'
 
-  // 等待音效解鎖完成
-  await audioUnlockPromise
-
-  // 播放第一次吸氣提示音
+  // 立即建立第一次吸氣提示音
   playTransitionSound('inhale')
 }
+
 
 
 
