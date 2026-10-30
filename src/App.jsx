@@ -1462,70 +1462,68 @@ function TrainingPage({
      播放吸氣 / 吐氣提示音
   ------------------------------------------------------- */
 
-  function playTransitionSound(
-    nextPhase
-  ) {
-    const audioContext =
-      getAudioContext()
+ 
+async function playTransitionSound(nextPhase) {
+  const audioContext = getAudioContext()
 
-    if (!audioContext) {
+  if (!audioContext) {
+    console.warn('此裝置不支援 AudioContext')
+    return
+  }
+
+  try {
+    // 如果音效系統暫停，嘗試重新啟動
+    if (audioContext.state === 'suspended') {
+      await audioContext.resume()
+    }
+
+    // 確認音效系統已正常啟動
+    if (audioContext.state !== 'running') {
+      console.warn('AudioContext 尚未啟動')
       return
     }
 
-    if (
-      audioContext.state === 'suspended'
-    ) {
-      return
-    }
-
-    const oscillator =
-      audioContext.createOscillator()
-
-    const gainNode =
-      audioContext.createGain()
+    const oscillator = audioContext.createOscillator()
+    const gainNode = audioContext.createGain()
 
     oscillator.connect(gainNode)
-
-    gainNode.connect(
-      audioContext.destination
-    )
+    gainNode.connect(audioContext.destination)
 
     // 吸氣高音、吐氣低音
     const frequency =
-      nextPhase === 'inhale'
-        ? 720
-        : 480
+      nextPhase === 'inhale' ? 720 : 480
 
     oscillator.type = 'sine'
 
+    const now = audioContext.currentTime
+
     oscillator.frequency.setValueAtTime(
       frequency,
-      audioContext.currentTime
+      now
     )
 
-    gainNode.gain.setValueAtTime(
-      0.0001,
-      audioContext.currentTime
-    )
+    gainNode.gain.setValueAtTime(0.0001, now)
 
     gainNode.gain.exponentialRampToValueAtTime(
       0.12,
-      audioContext.currentTime + 0.03
+      now + 0.03
     )
 
     gainNode.gain.exponentialRampToValueAtTime(
       0.0001,
-      audioContext.currentTime + 0.35
+      now + 0.35
     )
 
-    oscillator.start(
-      audioContext.currentTime
-    )
+    oscillator.start(now)
+    oscillator.stop(now + 0.4)
 
-    oscillator.stop(
-      audioContext.currentTime + 0.4
-    )
+    console.log('呼吸提示音播放：', nextPhase)
+
+  } catch (error) {
+    console.error('呼吸提示音播放失敗：', error)
   }
+}
+
 
   /* -------------------------------------------------------
      中文口述
@@ -1592,21 +1590,26 @@ function speakPhase(nextPhase) {
   ------------------------------------------------------- */
 
   
-function handleStart() {
-  // 先直接啟動語音
-  speakPhase('inhale')
 
-  // 解鎖音效
-  unlockAudio()
+async function handleStart() {
+  // 先啟動音效解鎖
+  const audioUnlockPromise = unlockAudio()
+
+  // 立即啟動中文語音
+  speakPhase('inhale')
 
   setStarted(true)
   setRunning(true)
 
   previousPhaseRef.current = 'inhale'
 
+  // 等待音效解鎖完成
+  await audioUnlockPromise
+
   // 播放第一次吸氣提示音
   playTransitionSound('inhale')
 }
+
 
 
   /* -------------------------------------------------------
