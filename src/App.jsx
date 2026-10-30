@@ -1484,58 +1484,74 @@ async function unlockAudio() {
 
  
 
-function playTransitionSound(nextPhase) {
-  const audioContext = getAudioContext()
 
-  if (!audioContext) {
-    console.warn('無法建立 AudioContext')
-    return
-  }
+function getBeepAudio(nextPhase) {
+  if (typeof window === 'undefined') return null
 
-  try {
-    // 先要求恢復音訊，但不等待，避免錯過 iPhone 點擊事件
-    if (audioContext.state === 'suspended') {
-      audioContext.resume().catch((error) => {
-        console.warn('AudioContext 恢復失敗：', error)
-      })
+  if (!window.__breathingBeepAudio) {
+    window.__breathingBeepAudio = {
+      inhale: new Audio('/sound/inhale-beep.wav'),
+      exhale: new Audio('/sound/exhale-beep.wav')
     }
 
-    const oscillator = audioContext.createOscillator()
-    const gainNode = audioContext.createGain()
+    Object.values(window.__breathingBeepAudio).forEach((audio) => {
+      audio.preload = 'auto'
+      audio.load()
+    })
+  }
 
-    oscillator.connect(gainNode)
-    gainNode.connect(audioContext.destination)
+  return nextPhase === 'inhale'
+    ? window.__breathingBeepAudio.inhale
+    : window.__breathingBeepAudio.exhale
+}
 
-    const frequency =
-      nextPhase === 'inhale' ? 720 : 480
+function playTransitionSound(nextPhase) {
+  const audio = getBeepAudio(nextPhase)
 
-    oscillator.type = 'sine'
+  if (!audio) return
 
-    const now = audioContext.currentTime
+  try {
+    audio.pause()
+    audio.currentTime = 0
+    audio.muted = false
+    audio.volume = 1
 
-    oscillator.frequency.setValueAtTime(frequency, now)
+    const playPromise = audio.play()
 
-    gainNode.gain.setValueAtTime(0.0001, now)
-
-    gainNode.gain.exponentialRampToValueAtTime(
-      0.12,
-      now + 0.03
-    )
-
-    gainNode.gain.exponentialRampToValueAtTime(
-      0.0001,
-      now + 0.35
-    )
-
-    oscillator.start(now)
-    oscillator.stop(now + 0.4)
-
-    console.log('提示音已建立：', nextPhase)
-
+    if (playPromise) {
+      playPromise.catch((error) => {
+        console.warn('WAV 提示音播放失敗：', error)
+      })
+    }
   } catch (error) {
-    console.error('提示音播放失敗：', error)
+    console.error('WAV 提示音錯誤：', error)
   }
 }
+
+
+function unlockBeepAudio() {
+  const inhale = getBeepAudio('inhale')
+  const exhale = getBeepAudio('exhale')
+
+  const sounds = [inhale, exhale].filter(Boolean)
+
+  return Promise.all(
+    sounds.map((audio) => {
+      audio.muted = true
+
+      return audio.play()
+        .then(() => {
+          audio.pause()
+          audio.currentTime = 0
+          audio.muted = false
+        })
+        .catch((error) => {
+          console.warn('音效預先解鎖失敗：', error)
+        })
+    })
+  )
+}
+
 
 
 
@@ -1606,21 +1622,30 @@ function speakPhase(nextPhase) {
   
 
 
-function handleStart() {
-  // 在使用者點擊當下啟動音效解鎖
+
+async function handleStart() {
+  // 解鎖原本的音效系統
   unlockAudio()
 
-  // 立即播放中文語音
+  // 在使用者點擊事件中，預先解鎖 WAV 音效
+  const beepUnlockPromise = unlockBeepAudio()
+
+  // 播放中文吸氣語音
   speakPhase('inhale')
 
+  // 啟動訓練
   setStarted(true)
   setRunning(true)
 
   previousPhaseRef.current = 'inhale'
 
-  // 立即建立第一次吸氣提示音
+  // 等待 WAV 音效解鎖完成
+  await beepUnlockPromise
+
+  // 播放第一次吸氣提示音
   playTransitionSound('inhale')
 }
+
 
 
 
